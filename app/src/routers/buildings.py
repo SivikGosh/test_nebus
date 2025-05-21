@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from src.dependencies import get_db
+from src.dependencies import get_async_db
 from src.schemas import (
     BuildingSchema,
     LocationParams,
@@ -8,15 +7,21 @@ from src.schemas import (
     PaginationParams
 )
 from src import crud
+from src.api_key import verify_secret_key
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
-@router.get('/radius', response_model=PaginatedResponse[BuildingSchema])
-def get_buildings_within_radius(
+@router.get(
+    '/radius',
+    response_model=PaginatedResponse[BuildingSchema],
+    dependencies=(Depends(verify_secret_key),)
+)
+async def get_buildings_within_radius(
     pagination: PaginationParams = Depends(),
     location: LocationParams = Depends(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Список зданий в указанном радиусе."""
-    return crud.get_buildings_within_radius(pagination, location, db)
+    return await crud.get_buildings_within_radius(pagination, location, db)

@@ -1,27 +1,31 @@
-from sqlalchemy.orm import Session
 from src.schemas import LocationParams, PaginationParams, PaginatedResponse
 from geoalchemy2.functions import ST_DWithin, ST_Point, ST_SetSRID
 from src.models import Building, Organization, OrganizationActivity, Activity
 from fastapi import HTTPException
 from http import HTTPStatus
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 
-def get_organizations_by_building(
+async def get_organizations_by_building(
     id: int,
     pagination: PaginationParams,
-    db: Session
+    db: AsyncSession
 ):
-    organizations = (
-        db.query(Organization)
+    base_query = select(Organization).filter_by(building_id=id)
+    count_query = (
+        select(func.count())
+        .select_from(Organization)
         .filter_by(building_id=id)
     )
-    total = organizations.count()
-    items = (
-        organizations
+    result_count = await db.execute(count_query)
+    total = result_count.scalar_one()
+    result_items = await db.execute(
+        base_query
         .offset((pagination.page - 1) * pagination.size)
         .limit(pagination.size)
-        .all()
     )
+    items = result_items.scalars().all()
     return PaginatedResponse(
         total=total,
         items=items,
@@ -30,23 +34,30 @@ def get_organizations_by_building(
     )
 
 
-def get_organizations_by_activity(
+async def get_organizations_by_activity(
     activity_id: int,
     pagination: PaginationParams,
-    db: Session
+    db: AsyncSession
 ):
-    organizations = (
-        db.query(Organization)
+    base_query = (
+        select(Organization)
         .join(OrganizationActivity)
         .filter(OrganizationActivity.activity_id == activity_id)
     )
-    total = organizations.count()
-    items = (
-        organizations
+    count_query = (
+        select(func.count())
+        .select_from(Organization)
+        .join(OrganizationActivity)
+        .filter(OrganizationActivity.activity_id == activity_id)
+    )
+    result_count = await db.execute(count_query)
+    total = result_count.scalar_one()
+    result_items = await db.execute(
+        base_query
         .offset((pagination.page - 1) * pagination.size)
         .limit(pagination.size)
-        .all()
     )
+    items = result_items.scalars().all()
     return PaginatedResponse(
         total=total,
         items=items,
@@ -55,49 +66,31 @@ def get_organizations_by_activity(
     )
 
 
-def get_organizations_within_radius(
+async def get_organizations_within_radius(
     pagination: PaginationParams,
     location: LocationParams,
-    db: Session
+    db: AsyncSession
 ):
     point = ST_SetSRID(ST_Point(location.lon, location.lat), 4326)
-    organizations = (
-        db.query(Organization)
+    base_query = (
+        select(Organization)
         .join(Building)
         .filter(ST_DWithin(Building.location, point, location.radius))
     )
-    total = organizations.count()
-    items = (
-        organizations
-        .offset((pagination.page - 1) * pagination.size)
-        .limit(pagination.size)
-        .all()
-    )
-    return PaginatedResponse(
-        total=total,
-        items=items,
-        page=pagination.page,
-        size=pagination.size
-    )
-
-
-def get_buildings_within_radius(
-    pagination: PaginationParams,
-    location: LocationParams,
-    db: Session
-):
-    point = ST_SetSRID(ST_Point(location.lon, location.lat), 4326)
-    buildings = (
-        db.query(Building)
+    count_query = (
+        select(func.count())
+        .select_from(Organization)
+        .join(Building)
         .filter(ST_DWithin(Building.location, point, location.radius))
     )
-    total = buildings.count()
-    items = (
-        buildings
+    result_count = await db.execute(count_query)
+    total = result_count.scalar_one()
+    result_items = await db.execute(
+        base_query
         .offset((pagination.page - 1) * pagination.size)
         .limit(pagination.size)
-        .all()
     )
+    items = result_items.scalars().all()
     return PaginatedResponse(
         total=total,
         items=items,
@@ -106,24 +99,62 @@ def get_buildings_within_radius(
     )
 
 
-def get_organizations_by_activity_title(
+async def get_buildings_within_radius(
+    pagination: PaginationParams,
+    location: LocationParams,
+    db: AsyncSession
+):
+    point = ST_SetSRID(ST_Point(location.lon, location.lat), 4326)
+    base_query = (
+        select(Building)
+        .filter(ST_DWithin(Building.location, point, location.radius))
+    )
+    count_query = (
+        select(func.count())
+        .select_from(Building)
+        .filter(ST_DWithin(Building.location, point, location.radius))
+    )
+    result_count = await db.execute(count_query)
+    total = result_count.scalar_one()
+    result_items = await db.execute(
+        base_query.offset((pagination.page - 1) * pagination.size)
+        .limit(pagination.size)
+    )
+    items = result_items.scalars().all()
+    return PaginatedResponse(
+        total=total,
+        items=items,
+        page=pagination.page,
+        size=pagination.size
+    )
+
+
+async def get_organizations_by_activity_title(
     pagination: PaginationParams,
     title: str,
-    db: Session
+    db: AsyncSession
 ):
-    organizations = (
-        db.query(Organization)
+    base_query = (
+        select(Organization)
         .join(OrganizationActivity)
         .join(Activity)
         .filter(Activity.title.ilike(f'%{title}%'))
     )
-    total = organizations.count()
-    items = (
-        organizations
+    count_query = (
+        select(func.count())
+        .select_from(Organization)
+        .join(OrganizationActivity)
+        .join(Activity)
+        .filter(Activity.title.ilike(f'%{title}%'))
+    )
+    result_count = await db.execute(count_query)
+    total = result_count.scalar_one()
+    result_items = await db.execute(
+        base_query
         .offset((pagination.page - 1) * pagination.size)
         .limit(pagination.size)
-        .all()
     )
+    items = result_items.scalars().all()
     return PaginatedResponse(
         total=total,
         items=items,
@@ -132,19 +163,20 @@ def get_organizations_by_activity_title(
     )
 
 
-def get_organization_by_id(id: int, db: Session):
-    organization = db.query(Organization).filter_by(id=id).first()
+async def get_organization_by_id(id: int, db: AsyncSession):
+    result = await db.execute(select(Organization).filter_by(id=id))
+    organization = result.scalars().first()
     if organization is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, 'Организация не найдена.')
     return organization
 
 
-def get_organization_by_title(title: str, db: Session):
-    organization = (
-        db.query(Organization)
+async def get_organization_by_title(title: str, db: AsyncSession):
+    result = await db.execute(
+        select(Organization)
         .filter(Organization.title.ilike(f'%{title}%'))
-        .first()
     )
+    organization = result.scalars().first()
     if organization is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, 'Организация не найдена.')
     return organization

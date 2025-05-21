@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from src.dependencies import get_db
+from src.dependencies import get_async_db
 from src.schemas import (
     OrganizationSchema,
     LocationParams,
@@ -8,66 +7,91 @@ from src.schemas import (
     PaginationParams
 )
 from src import crud
+from src.api_key import verify_secret_key
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
 @router.get(
     '/by-building/{id}',
-    response_model=PaginatedResponse[OrganizationSchema]
+    response_model=PaginatedResponse[OrganizationSchema],
+    dependencies=(Depends(verify_secret_key),)
 )
-def get_organizations_by_building(
+async def get_organizations_by_building(
     id: int,
     pagination: PaginationParams = Depends(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Список организаций в здании по его ID."""
-    return crud.get_organizations_by_building(id, pagination, db)
+    return await crud.get_organizations_by_building(id, pagination, db)
 
 
 @router.get(
     '/by-activity/{id}',
-    response_model=PaginatedResponse[OrganizationSchema]
+    response_model=PaginatedResponse[OrganizationSchema],
+    dependencies=(Depends(verify_secret_key),)
 )
-def get_organizations_by_activity(
+async def get_organizations_by_activity(
     id: int,
     pagination: PaginationParams = Depends(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Список организаций по ID деятельности."""
-    return crud.get_organizations_by_activity(id, pagination, db)
+    return await crud.get_organizations_by_activity(id, pagination, db)
 
 
-@router.get('/radius', response_model=PaginatedResponse[OrganizationSchema])
-def get_organizations_within_radius(
+@router.get(
+    '/radius',
+    response_model=PaginatedResponse[OrganizationSchema],
+    dependencies=(Depends(verify_secret_key),)
+)
+async def get_organizations_within_radius(
     pagination: PaginationParams = Depends(),
     location: LocationParams = Depends(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Список организаций в выбранном радиусе."""
-    return crud.get_organizations_within_radius(pagination, location, db)
+    return await crud.get_organizations_within_radius(pagination, location, db)
 
 
 @router.get(
     '/search_activity',
-    response_model=PaginatedResponse[OrganizationSchema]
+    response_model=PaginatedResponse[OrganizationSchema],
+    dependencies=(Depends(verify_secret_key),)
 )
-def get_organizations_by_activity_title(
+async def get_organizations_by_activity_title(
     pagination: PaginationParams = Depends(),
     title: str = Query(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Список организаций по названию деятельности."""
-    return crud.get_organizations_by_activity_title(pagination, title, db)
+    return await (
+        crud.get_organizations_by_activity_title(pagination, title, db)
+    )
 
 
-@router.get('/{id}', response_model=OrganizationSchema)
-def get_organization_by_id(id: int, db: Session = Depends(get_db)):
+@router.get(
+    '/{id}',
+    response_model=OrganizationSchema,
+    dependencies=(Depends(verify_secret_key),)
+)
+async def get_organization_by_id(
+    id: int,
+    db: AsyncSession = Depends(get_async_db)
+):
     """Получить организацию по ID."""
-    return crud.get_organization_by_id(id, db)
+    return await crud.get_organization_by_id(id, db)
 
 
-@router.get('/', response_model=OrganizationSchema)
-def get_organization_by_title(title: str, db: Session = Depends(get_db)):
+@router.get(
+    '/',
+    response_model=OrganizationSchema,
+    dependencies=(Depends(verify_secret_key),)
+)
+async def get_organization_by_title(
+    title: str,
+    db: AsyncSession = Depends(get_async_db)
+):
     """Получить организацию по названию."""
-    return crud.get_organization_by_title(title, db)
+    return await crud.get_organization_by_title(title, db)
