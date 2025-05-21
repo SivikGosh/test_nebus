@@ -66,8 +66,28 @@ class Activity(Base):
         Integer,
         ForeignKey('activities.id'),
     )
+    level = Column(
+        Integer,
+        nullable=False,
+        default=0
+    )
 
-    parent = relationship('Activity')
+    parent = relationship('Activity', remote_side=[id], backref='children')
+
+    MAX_LEVEL = 3
+
+    def set_level(self, session):
+        if self.parent is not None:
+            self.level = self.parent.level + 1
+        elif self.parent_id is not None:
+            parent = session.get(Activity, self.parent_id)
+            if parent is None:
+                raise ValueError('Родитель не найден.')
+            self.level = parent.level + 1
+        else:
+            self.level = 0
+        if self.level > self.MAX_LEVEL:
+            raise ValueError(f'Максимальная вложенность — {self.MAX_LEVEL}.')
 
 
 class OrganizationActivity(Base):
@@ -82,12 +102,12 @@ class OrganizationActivity(Base):
     organization_id = Column(
         Integer,
         ForeignKey('organizations.id'),
-        nullable=False
+        nullable=False,
     )
     activity_id = Column(
         Integer,
         ForeignKey('activities.id'),
-        nullable=False
+        nullable=False,
     )
 
     organization = relationship('Organization')
@@ -104,18 +124,19 @@ class PhoneNumber(Base):
         primary_key=True,
     )
     _number = Column(
-
+        String,
+        nullable=False,
     )
     organization_id = Column(
         Integer,
         ForeignKey('organizations.id'),
-        nullable=False
+        nullable=False,
     )
 
     organization = relationship('Organization')
 
     NUMBER_FORMAT_1 = re.compile(r'^\d{1}-\d{3}-\d{3}$')
-    NUMBER_FORMAT_2 = re.compile(r'^^\d{1}-\d{3}-\d{3}-\d{2}-\d{2}$')
+    NUMBER_FORMAT_2 = re.compile(r'^\d{1}-\d{3}-\d{3}-\d{2}-\d{2}$')
 
     @property
     def number(self):
@@ -123,8 +144,8 @@ class PhoneNumber(Base):
 
     @number.setter
     def number(self, value):
-        if (
-            not self.NUMBER_FORMAT_1.match(value)
+        if not (
+            self.NUMBER_FORMAT_1.match(value)
             or self.NUMBER_FORMAT_2.match(value)
         ):
             raise ValueError('Некорректный формат номера.')
