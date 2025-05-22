@@ -4,7 +4,8 @@ from src.schemas import (
     OrganizationSchema,
     LocationParams,
     PaginatedResponse,
-    PaginationParams
+    PaginationParams,
+    ActivitySchema
 )
 from src import crud
 from src.api_key import verify_secret_key
@@ -69,6 +70,19 @@ async def get_organizations_by_activity_title(
     return await (
         crud.get_organizations_by_activity_title(pagination, title, db)
     )
+
+
+@router.get(
+    '/activities',
+    response_model=ActivitySchema,
+    dependencies=(Depends(verify_secret_key),)
+)
+async def get_activity_by_title(
+    title: str,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Получить организацию по названию."""
+    return await crud.get_activity_by_title(title, db)
 
 
 @router.get(

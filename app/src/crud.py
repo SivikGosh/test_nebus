@@ -171,6 +171,14 @@ async def get_organization_by_id(id: int, db: AsyncSession):
     return organization
 
 
+async def get_building_by_id(id: int, db: AsyncSession):
+    result = await db.execute(select(Building).filter_by(id=id))
+    building = result.scalars().first()
+    if building is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, 'Организация не найдена.')
+    return building
+
+
 async def get_organization_by_title(title: str, db: AsyncSession):
     result = await db.execute(
         select(Organization)
@@ -180,3 +188,14 @@ async def get_organization_by_title(title: str, db: AsyncSession):
     if organization is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, 'Организация не найдена.')
     return organization
+
+
+async def get_activity_by_title(title: str, db: AsyncSession):
+    result = await db.execute(
+        select(Activity)
+        .filter(Activity.title.ilike(f'%{title}%'))
+    )
+    activity = result.scalars().first()
+    if activity is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, 'Деятельность не найдена.')
+    return activity

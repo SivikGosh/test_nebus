@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>Организации в радиусе</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            padding: 2rem;
+            margin: 0;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        form {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 1rem;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 0.25rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: default;
+        }
+        hr {
+            margin: 2rem auto;
+            max-width: 600px;
+            border: none;
+            border-top: 1px solid #ccc;
+        }
+        #results {
+            max-width: 600px;
+            margin: 0 auto 1rem;
+            background-color: #fff;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+        }
+        #results ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        #results li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        #results li:last-child {
+            border-bottom: none;
+        }
+        .organization-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .building-info {
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            border-left: 3px solid #27ae60;
+            background-color: #eaffea;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(39, 174, 96, 0.15);
+            max-width: 90%;
+            width: 100%;
+            animation: fadeIn 0.3s ease forwards;
+        }
+        .building-info p {
+            margin: 0.5rem 0;
+        }
+        @keyframes fadeIn {
+            from {opacity: 0; transform: translateY(-5px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+        #pagination {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        #pagination span {
+            font-weight: bold;
+            margin: 0 1rem;
+            font-size: 1.1rem;
+            vertical-align: middle;
+        }
+        header {
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+        header button {
+            padding: 0.5rem 1.2rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        header button:hover {
+            background-color: #2980b9;
+        }
+        header button a {
+            text-decoration: none;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <button><a href="/buildings">Здания</a></button>
+    <button class="active"><a href="/organizations">Организации</a></button>
+    <button><a href="/activities">Деятельности</a></button>
+    <button type="button"><a href="/redoc" target="_blank">ReDoc</a></button>
+    <button type="button"><a href="/docs" target="_blank">Swagger</a></button>
+</header>
+
+<h1>Поиск организаций в радиусе</h1>
+
+<form id="search-form">
+    <label>Широта (lat): <input type="text" id="lat" required /></label>
+    <label>Долгота (lon): <input type="text" id="lon" required /></label>
+    <label>Радиус (в метрах): <input type="number" id="radius" required /></label>
+    <button type="submit">Поиск</button>
+</form>
+
+<hr />
+
+<div id="results"></div>
+
+<div id="pagination" style="display:none;">
+    <button id="prev-btn">Назад</button>
+    <span id="page-info">Страница 1</span>
+    <button id="next-btn">Вперёд</button>
+</div>
+
+<script>
+    const form = document.getElementById('search-form');
+    const resultsDiv = document.getElementById('results');
+    const paginationDiv = document.getElementById('pagination');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const pageInfo = document.getElementById('page-info');
+
+    let currentPage = 1;
+    let totalPages = 1;
+
+    async function fetchBuildingByOrganization(orgId, button, container) {
+        const existing = container.querySelector('.building-info');
+        if (existing) {
+            existing.remove();
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Загрузка...";
+
+        try {
+            // Первый запрос — получить организацию
+            const orgRes = await fetch(`/organizations/${orgId}`, {
+                headers: { 'x-api-key': '1qazxsw2' }
+            });
+            if (!orgRes.ok) throw new Error(`Ошибка при получении организации: ${orgRes.status}`);
+
+            const organization = await orgRes.json();
+            const buildingId = organization?.building_id;
+            if (!buildingId) throw new Error('building_id не найден');
+
+            // Второй запрос — получить здание
+            const buildingRes = await fetch(`/buildings/${buildingId}`, {
+                headers: { 'x-api-key': '1qazxsw2' }
+            });
+            if (!buildingRes.ok) throw new Error(`Ошибка при получении здания: ${buildingRes.status}`);
+
+            const building = await buildingRes.json();
+
+            // Отображение информации о здании
+            const div = document.createElement('div');
+            div.className = 'building-info';
+            div.innerHTML = `<p><strong>Здание:</strong> ${building?.address || 'неизвестно'}</p>`;
+            container.appendChild(div);
+        } catch (err) {
+            alert('Ошибка: ' + err.message);
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Показать здание';
+        }
+    }
+
+    async function fetchOrganizations(page) {
+        const lat = parseFloat(document.getElementById('lat').value);
+        const lon = parseFloat(document.getElementById('lon').value);
+        const radius = document.getElementById('radius').value;
+
+        try {
+            const res = await fetch(`/organizations/radius?lat=${lat}&lon=${lon}&radius=${radius}&page=${page}`, {
+                headers: { 'x-api-key': '1qazxsw2' }
+            });
+            const data = await res.json();
+
+            if (!data.items || data.items.length === 0) {
+                resultsDiv.innerHTML = "<p>Нет организаций в радиусе.</p>";
+                paginationDiv.style.display = 'none';
+                return;
+            }
+
+            resultsDiv.innerHTML = `
+                <p>Всего найдено: ${data.total}</p>
+                <ul>
+                    ${data.items.map(org => `
+                        <li class="organization-item" data-id="${org.id}">
+                            <span><strong>${org.title}</strong></span>
+                            <button type="button">Показать здание</button>
+                        </li>`).join('')}
+                </ul>
+            `;
+
+            resultsDiv.querySelectorAll('.organization-item').forEach(item => {
+                const btn = item.querySelector('button');
+                btn.addEventListener('click', () => fetchBuildingByOrganization(item.dataset.id, btn, item));
+            });
+
+            currentPage = page;
+            const pageSize = data.items.length || 10;
+            totalPages = Math.ceil(data.total / pageSize);
+            pageInfo.textContent = `Страница ${currentPage} из ${totalPages}`;
+            paginationDiv.style.display = 'block';
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+
+        } catch (err) {
+            alert("Ошибка при получении организаций: " + err.message);
+            paginationDiv.style.display = 'none';
+        }
+    }
+
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        fetchOrganizations(1);
+    });
+
+    prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) fetchOrganizations(currentPage - 1);
+    });
+
+    nextBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) fetchOrganizations(currentPage + 1);
+    });
+</script>
+
+</body>
+</html>

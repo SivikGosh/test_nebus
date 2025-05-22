@@ -28,6 +28,15 @@ class BuildingSchema(BaseModel):
 class OrganizationSchema(BaseModel):
     id: int
     title: str
+    building_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class ActivitySchema(BaseModel):
+    id: int
+    title: str
 
     class Config:
         from_attributes = True

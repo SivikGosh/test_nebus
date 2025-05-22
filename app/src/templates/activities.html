@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Поиск организаций по названию деятельности</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      color: #333;
+      padding: 2rem;
+      margin: 0;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    form {
+      max-width: 400px;
+      margin: 0 auto 1rem;
+      padding: 1.5rem;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+    button {
+      margin-top: 1rem;
+      width: 100%;
+      padding: 0.6rem;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover:not(:disabled) {
+      background-color: #2980b9;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: default;
+    }
+    #autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background-color: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      z-index: 999;
+      max-height: 200px;
+      overflow-y: auto;
+      border-radius: 0 0 8px 8px;
+    }
+    #autocomplete-list div {
+      padding: 0.5rem;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    #autocomplete-list div:hover {
+      background-color: #f0f0f0;
+    }
+    #results {
+      max-width: 600px;
+      margin: 1rem auto;
+      background-color: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+    }
+    #results ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+    #results li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    #results li:last-child {
+      border-bottom: none;
+    }
+    header {
+      max-width: 600px;
+      margin: 0 auto 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+    header button {
+      padding: 0.5rem 1.2rem;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    header button:hover {
+      background-color: #2980b9;
+    }
+    header button a {
+      text-decoration: none;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <button type="button" class="active"><a href="/buildings">Здания</a></button>
+    <button type="button"><a href="/organizations">Организации</a></button>
+    <button type="button"><a href="/activities">Деятельности</a></button>
+    <button type="button"><a href="/redoc" target="_blank">ReDoc</a></button>
+    <button type="button"><a href="/docs" target="_blank">Swagger</a></button>
+  </header>
+
+  <h1>Поиск организаций по названию деятельности</h1>
+
+  <form id="search-form" autocomplete="off">
+    <input
+      type="text"
+      id="search-input"
+      placeholder="Введите часть названия деятельности"
+      required
+    />
+    <div id="autocomplete-list"></div>
+  </form>
+
+  <div id="results"></div>
+
+<script>
+  const form = document.getElementById('search-form');
+  const input = document.getElementById('search-input');
+  const resultsDiv = document.getElementById('results');
+  const autocompleteList = document.getElementById('autocomplete-list');
+
+  async function fetchAutocompleteList(query) {
+    const url = `/organizations/activities/?title=${encodeURIComponent(query.trim())}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'x-api-key': '1qazxsw2'
+        }
+      });
+      if (!res.ok) throw new Error('Ошибка запроса');
+      const data = await res.json();
+      return [data];
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }
+
+  function clearAutocomplete() {
+    autocompleteList.innerHTML = '';
+  }
+
+  input.addEventListener('input', async () => {
+    const query = input.value;
+    clearAutocomplete();
+
+    if (!query.trim()) return;
+
+    const suggestions = await fetchAutocompleteList(query);
+
+    suggestions.forEach(item => {
+      const div = document.createElement('div');
+      div.textContent = item.title ?? 'Без названия';
+      div.addEventListener('click', () => {
+        input.value = item.title;
+        clearAutocomplete();
+        fetchOrganizationsByTitle(input.value);
+      });
+      autocompleteList.appendChild(div);
+    });
+  });
+
+  async function fetchOrganizationsByTitle(title) {
+    if (!title.trim()) {
+      resultsDiv.innerHTML = '<p>Введите текст для поиска.</p>';
+      return;
+    }
+
+    const url = `/organizations/search_activity?title=${encodeURIComponent(title.trim())}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'x-api-key': '1qazxsw2'
+        }
+      });
+
+      if (!res.ok) throw new Error('Ошибка при получении данных');
+
+      const data = await res.json();
+
+      if (!data.items || data.items.length === 0) {
+        resultsDiv.innerHTML = '<p>Организации не найдены.</p>';
+        return;
+      }
+
+      resultsDiv.innerHTML = `
+        <p>Найдено организаций: ${data.total ?? data.items.length}</p>
+        <ul>
+          ${data.items.map(org => `<li>${org.title ?? 'Без названия'}</li>`).join('')}
+        </ul>
+      `;
+    } catch (err) {
+      console.error(err);
+      resultsDiv.innerHTML = '<p>Ошибка при поиске организаций.</p>';
+    }
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    clearAutocomplete();
+    fetchOrganizationsByTitle(input.value);
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target !== input) {
+      clearAutocomplete();
+    }
+  });
+</script>
+</body>
+</html>
