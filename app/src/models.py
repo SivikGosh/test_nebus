@@ -76,11 +76,11 @@ class Activity(Base):
 
     MAX_LEVEL = 3
 
-    def set_level(self, session):
+    async def set_level(self, session):
         if self.parent is not None:
             self.level = self.parent.level + 1
         elif self.parent_id is not None:
-            parent = session.get(Activity, self.parent_id)
+            parent = await session.get(Activity, self.parent_id)
             if parent is None:
                 raise ValueError('Родитель не найден.')
             self.level = parent.level + 1
