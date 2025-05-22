@@ -1,5 +1,6 @@
 # test4nebus
 Тестовое задание для компании Небус.
+Демо проекта доступно по адресу: http://84.252.73.12:7000/.
 
 ### Стек технологий
 <img src="https://img.shields.io/badge/python-%233776AB.svg?style=for-the-badge&logo=Python&logoColor=white" alt="Badge" /> <img src="https://img.shields.io/badge/fastapi-%23009688.svg?style=for-the-badge&logo=fastapi&logoColor=white" alt="Badge" />
